@@ -18,6 +18,7 @@ import adminEventsRoutes from "./routes/admin-events";
 import eventsRoutes from "./routes/events";
 import announcementsRoutes from "./routes/announcements";
 import adminAnnouncementsRoutes from "./routes/admin-announcements";
+import adminDistributionRoutes from "./routes/admin-distribution";
 
 dotenv.config();
 
@@ -62,6 +63,7 @@ app.use("/api/events", eventsRoutes);
 app.use("/api/admin/announcements", adminAnnouncementsRoutes);
 app.use("/api/announcements", announcementsRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/admin/distribution", adminDistributionRoutes);
 
 connectDB()
   .then(() => {

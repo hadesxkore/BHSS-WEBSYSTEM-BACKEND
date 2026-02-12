@@ -86,6 +86,9 @@ router.get("/history", requireAuth, requireAdmin, async (req: AuthenticatedReque
           },
           municipality: { $ifNull: ["$user.municipality", ""] },
           school: { $ifNull: ["$user.school", ""] },
+          userName: { $ifNull: ["$user.name", ""] },
+          hlaManagerName: { $ifNull: ["$user.hlaManagerName", ""] },
+          username: { $ifNull: ["$user.username", ""] },
         },
       }
     );
@@ -98,6 +101,9 @@ router.get("/history", requireAuth, requireAdmin, async (req: AuthenticatedReque
         dateKey: r.dateKey,
         municipality: r.municipality || "",
         school: r.school || "",
+        userName: r.userName || "",
+        hlaManagerName: r.hlaManagerName || "",
+        username: r.username || "",
         categoryKey: r.categoryKey,
         categoryLabel: r.categoryLabel,
         status: r.status,

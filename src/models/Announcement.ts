@@ -19,8 +19,8 @@ export interface IAnnouncement extends Document {
   audience: AnnouncementAudience;
   attachments?: AnnouncementAttachment[];
   createdBy: mongoose.Types.ObjectId;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const attachmentSchema = new Schema<AnnouncementAttachment>(

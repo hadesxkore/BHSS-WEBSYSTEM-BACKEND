@@ -448,28 +448,30 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       name,
     } = req.body;
 
-    if (!email || !username || !password || !school || !municipality) {
+    if (!username || !password || !school || !municipality) {
       return res.status(400).json({
         message:
-          "email, username, password, school, and municipality are required",
+          "username, password, school, and municipality are required",
       });
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
     const normalizedUsername = String(username).trim().toLowerCase();
+    const normalizedEmail =
+      typeof email === "string" && String(email).trim()
+        ? String(email).trim().toLowerCase()
+        : undefined;
 
-    const existing = await User.findOne({
-      $or: [{ username: normalizedUsername }, { email: normalizedEmail }],
-    });
+    const or: any[] = [{ username: normalizedUsername }];
+    if (normalizedEmail) or.push({ email: normalizedEmail });
+    const existing = await User.findOne({ $or: or });
     if (existing) {
       return res.status(409).json({ message: "Username or email already exists" });
     }
 
     const hashed = await bcrypt.hash(String(password), 10);
 
-    const created = await User.create({
+    const payload: any = {
       username: normalizedUsername,
-      email: normalizedEmail,
       password: hashed,
       name: name ? String(name) : normalizedUsername,
       role: role ? String(role) : "user",
@@ -480,23 +482,27 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       municipality: String(municipality).trim(),
       province: province ? String(province).trim() : "Bataan",
       isActive: true,
-    });
+    };
+    if (normalizedEmail) payload.email = normalizedEmail;
+
+    const created = await User.create(payload);
+    const createdDoc = Array.isArray(created) ? created[0] : created;
 
     return res.status(201).json({
       user: {
-        id: created._id,
-        username: created.username,
-        email: created.email,
-        name: created.name,
-        role: created.role,
-        school: created.school,
-        contactNumber: (created as any).contactNumber,
-        schoolAddress: (created as any).schoolAddress,
-        hlaManagerName: (created as any).hlaManagerName,
-        municipality: created.municipality,
-        province: created.province,
-        isActive: created.isActive,
-        createdAt: created.createdAt,
+        id: (createdDoc as any)._id,
+        username: (createdDoc as any).username,
+        email: (createdDoc as any).email,
+        name: (createdDoc as any).name,
+        role: (createdDoc as any).role,
+        school: (createdDoc as any).school,
+        contactNumber: (createdDoc as any).contactNumber,
+        schoolAddress: (createdDoc as any).schoolAddress,
+        hlaManagerName: (createdDoc as any).hlaManagerName,
+        municipality: (createdDoc as any).municipality,
+        province: (createdDoc as any).province,
+        isActive: (createdDoc as any).isActive,
+        createdAt: (createdDoc as any).createdAt,
       },
     });
   } catch (err) {
