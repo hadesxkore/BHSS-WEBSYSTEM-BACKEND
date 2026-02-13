@@ -95,6 +95,14 @@ router.post("/record", requireAuth, async (req: AuthenticatedRequest, res) => {
         webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
         const subs = await PushSubscription.find().lean();
+        if (!subs.length) {
+          try {
+            console.warn("[push] attendance: no subscriptions; skipping send");
+          } catch {
+            // ignore
+          }
+          return res.status(200).json({ record: saved });
+        }
         const school = String((u as any)?.school || "");
         const grade = String((saved as any)?.grade || "");
         const dateKey = String((saved as any)?.dateKey || "");
@@ -128,6 +136,12 @@ router.post("/record", requireAuth, async (req: AuthenticatedRequest, res) => {
             }
           })
         );
+      } else {
+        try {
+          console.warn("[push] attendance: missing VAPID keys; skipping send");
+        } catch {
+          // ignore
+        }
       }
     } catch (pushErr) {
       console.error("Web push error", pushErr);

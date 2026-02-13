@@ -13,6 +13,11 @@ router.get("/vapid-public-key", requireAuth, async (_req: AuthenticatedRequest, 
 router.post("/subscribe", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.user?.id) {
+      try {
+        console.warn("[push] subscribe unauthorized");
+      } catch {
+        // ignore
+      }
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -22,6 +27,15 @@ router.post("/subscribe", requireAuth, async (req: AuthenticatedRequest, res) =>
     const auth = typeof sub?.keys?.auth === "string" ? sub.keys.auth : "";
 
     if (!endpoint || !p256dh || !auth) {
+      try {
+        console.warn("[push] subscribe invalid subscription", {
+          hasEndpoint: Boolean(endpoint),
+          hasP256dh: Boolean(p256dh),
+          hasAuth: Boolean(auth),
+        });
+      } catch {
+        // ignore
+      }
       return res.status(400).json({ message: "Invalid subscription" });
     }
 
@@ -37,6 +51,15 @@ router.post("/subscribe", requireAuth, async (req: AuthenticatedRequest, res) =>
       { new: true, upsert: true }
     );
 
+    try {
+      console.log("[push] subscribe saved", {
+        userId: String(req.user.id),
+        endpoint: String(endpoint).slice(0, 60),
+      });
+    } catch {
+      // ignore
+    }
+
     return res.json({ subscription: saved });
   } catch (err) {
     console.error(err);
@@ -48,6 +71,12 @@ router.post("/unsubscribe", requireAuth, async (req: AuthenticatedRequest, res) 
   try {
     const endpoint = typeof (req.body as any)?.endpoint === "string" ? (req.body as any).endpoint.trim() : "";
     if (!endpoint) return res.status(400).json({ message: "endpoint is required" });
+
+    try {
+      console.log("[push] unsubscribe", { endpoint: String(endpoint).slice(0, 60) });
+    } catch {
+      // ignore
+    }
 
     await PushSubscription.deleteOne({ endpoint });
     return res.json({ ok: true });
