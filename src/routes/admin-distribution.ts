@@ -10,6 +10,8 @@ import { WaterDistributionBatch } from "../models/WaterDistributionBatch";
 import { WaterDistributionRow } from "../models/WaterDistributionRow";
 import { LpgDistributionBatch } from "../models/LpgDistributionBatch";
 import { LpgDistributionRow } from "../models/LpgDistributionRow";
+import { RiceDistributionBatch } from "../models/RiceDistributionBatch";
+import { RiceDistributionRow } from "../models/RiceDistributionRow";
 
 const router = Router();
 
@@ -634,6 +636,278 @@ router.patch(
           bhssKitchenName: updated.bhssKitchenName,
           schoolName: updated.schoolName,
           gasul: updated.gasul,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+// -----------------------------------
+// Rice Distribution
+// -----------------------------------
+
+router.get(
+  "/rice/batches",
+  requireAuth,
+  requireAdmin,
+  async (_req: AuthenticatedRequest, res) => {
+    try {
+      const batches = await RiceDistributionBatch.find({}).sort({ createdAt: -1 }).limit(200);
+      return res.json({
+        batches: batches.map((b) => ({
+          id: String(b._id),
+          municipality: b.municipality || "ALL",
+          bhssKitchenName: b.bhssKitchenName,
+          sheetName: b.sheetName || "",
+          sourceFileName: b.sourceFileName || "",
+          uploadedByUserId: b.uploadedByUserId || "",
+          createdAt: b.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.get(
+  "/rice/latest",
+  requireAuth,
+  requireAdmin,
+  async (_req: AuthenticatedRequest, res) => {
+    try {
+      const batch = await RiceDistributionBatch.findOne({})
+        .sort({ createdAt: -1 })
+        .select({ municipality: 1, bhssKitchenName: 1, sheetName: 1, sourceFileName: 1, uploadedByUserId: 1, createdAt: 1 })
+        .lean();
+      if (!batch) return res.json({ batch: null, rows: [] });
+
+      const rows = await RiceDistributionRow.find({ batchId: (batch as any)._id })
+        .sort({ municipality: 1, schoolName: 1 })
+        .select({ batchId: 1, municipality: 1, bhssKitchenName: 1, schoolName: 1, rice: 1, createdAt: 1 })
+        .lean();
+
+      return res.json({
+        batch: {
+          id: String((batch as any)._id),
+          municipality: (batch as any).municipality || "ALL",
+          bhssKitchenName: (batch as any).bhssKitchenName,
+          sheetName: (batch as any).sheetName || "",
+          sourceFileName: (batch as any).sourceFileName || "",
+          uploadedByUserId: (batch as any).uploadedByUserId || "",
+          createdAt: (batch as any).createdAt,
+        },
+        rows: (rows || []).map((r: any) => ({
+          id: String(r._id),
+          batchId: String(r.batchId),
+          municipality: r.municipality,
+          bhssKitchenName: r.bhssKitchenName,
+          schoolName: r.schoolName,
+          rice: r.rice,
+          createdAt: r.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.get(
+  "/rice/batches/:batchId",
+  requireAuth,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const batchId = normalizeString(req.params.batchId);
+      if (!batchId) return res.status(400).json({ message: "batchId is required" });
+
+      const batch = await RiceDistributionBatch.findById(batchId);
+      if (!batch) return res.status(404).json({ message: "Batch not found" });
+
+      const rows = await RiceDistributionRow.find({ batchId: batch._id }).sort({ municipality: 1, schoolName: 1 });
+
+      return res.json({
+        batch: {
+          id: String(batch._id),
+          municipality: batch.municipality || "ALL",
+          bhssKitchenName: batch.bhssKitchenName,
+          sheetName: batch.sheetName || "",
+          sourceFileName: batch.sourceFileName || "",
+          uploadedByUserId: batch.uploadedByUserId || "",
+          createdAt: batch.createdAt,
+        },
+        rows: rows.map((r) => ({
+          id: String(r._id),
+          batchId: String(r.batchId),
+          municipality: r.municipality,
+          bhssKitchenName: r.bhssKitchenName,
+          schoolName: r.schoolName,
+          rice: r.rice,
+          createdAt: r.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.post(
+  "/rice/batches",
+  requireAuth,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const bhssKitchenName = normalizeString(req.body?.bhssKitchenName || "BHSS Kitchen");
+      const sheetName = normalizeString(req.body?.sheetName);
+      const sourceFileName = normalizeString(req.body?.sourceFileName);
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+
+      if (!bhssKitchenName) {
+        return res.status(400).json({ message: "bhssKitchenName is required" });
+      }
+
+      if (items.length === 0) {
+        return res.status(400).json({ message: "items is required" });
+      }
+
+      const docs = items.map((it: any) => ({
+        municipality: normalizeString(it?.municipality),
+        bhssKitchenName,
+        schoolName: normalizeString(it?.schoolName),
+        rice: normalizeNumber(it?.rice),
+      }));
+
+      if (docs.some((d: any) => !d.municipality || !d.schoolName)) {
+        return res
+          .status(400)
+          .json({ message: "Each item requires municipality and schoolName" });
+      }
+
+      const contentHash = sha256(
+        JSON.stringify({
+          kind: "rice",
+          bhssKitchenName,
+          sheetName,
+          items: docs
+            .slice()
+            .sort((a: any, b: any) =>
+              String(a.municipality).localeCompare(String(b.municipality)) ||
+              String(a.schoolName).localeCompare(String(b.schoolName))
+            ),
+        })
+      );
+
+      const existing = await RiceDistributionBatch.findOne({ contentHash });
+      if (existing) {
+        return res.json({
+          unchanged: true,
+          batch: {
+            id: String(existing._id),
+            municipality: existing.municipality || "ALL",
+            bhssKitchenName: existing.bhssKitchenName,
+            sheetName: existing.sheetName || "",
+            sourceFileName: existing.sourceFileName || "",
+            uploadedByUserId: existing.uploadedByUserId || "",
+            createdAt: existing.createdAt,
+          },
+        });
+      }
+
+      const batch = await RiceDistributionBatch.create({
+        municipality: "ALL",
+        bhssKitchenName,
+        contentHash,
+        sheetName,
+        sourceFileName,
+        uploadedByUserId: req.user?.id ? String(req.user.id) : "",
+      });
+
+      await RiceDistributionRow.insertMany(
+        docs.map((d: any) => ({ ...d, batchId: batch._id })),
+        { ordered: true }
+      );
+
+      return res.status(201).json({
+        unchanged: false,
+        batch: {
+          id: String(batch._id),
+          municipality: batch.municipality || "ALL",
+          bhssKitchenName: batch.bhssKitchenName,
+          sheetName: batch.sheetName || "",
+          sourceFileName: batch.sourceFileName || "",
+          uploadedByUserId: batch.uploadedByUserId || "",
+          createdAt: batch.createdAt,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.delete(
+  "/rice/batches/:batchId",
+  requireAuth,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const batchId = normalizeString(req.params.batchId);
+      if (!batchId) return res.status(400).json({ message: "batchId is required" });
+
+      const batch = await RiceDistributionBatch.findById(batchId);
+      if (!batch) return res.status(404).json({ message: "Batch not found" });
+
+      await RiceDistributionRow.deleteMany({ batchId: batch._id });
+      await RiceDistributionBatch.deleteOne({ _id: batch._id });
+
+      return res.json({ message: "Deleted" });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.patch(
+  "/rice/rows/:rowId",
+  requireAuth,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const rowId = normalizeString(req.params.rowId);
+      const field = normalizeString(req.body?.field);
+      const value = normalizeNumber(req.body?.value);
+
+      if (!rowId) return res.status(400).json({ message: "rowId is required" });
+      if (field !== "rice") return res.status(400).json({ message: "Invalid field" });
+
+      const updated = await RiceDistributionRow.findByIdAndUpdate(
+        rowId,
+        { $set: { rice: value } },
+        { new: true }
+      );
+
+      if (!updated) return res.status(404).json({ message: "Row not found" });
+
+      return res.json({
+        row: {
+          id: String(updated._id),
+          batchId: String(updated.batchId),
+          municipality: updated.municipality,
+          bhssKitchenName: updated.bhssKitchenName,
+          schoolName: updated.schoolName,
+          rice: updated.rice,
           createdAt: updated.createdAt,
           updatedAt: updated.updatedAt,
         },
