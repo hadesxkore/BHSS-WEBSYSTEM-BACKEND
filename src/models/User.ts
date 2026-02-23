@@ -6,10 +6,12 @@ export interface IUser extends Document {
   password: string;
   name: string;
   role: string;
+  position?: string;
   school?: string;
   contactNumber?: string;
   schoolAddress?: string;
   hlaManagerName?: string;
+  hlaRoleType?: string;
   avatarUrl?: string;
   municipality?: string;
   province?: string;
@@ -25,10 +27,12 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true },
     name: { type: String, required: true },
     role: { type: String, required: true, default: "student" },
+    position: { type: String, required: false, default: "" },
     school: { type: String, required: false, default: "" },
     contactNumber: { type: String, required: false, default: "" },
     schoolAddress: { type: String, required: false, default: "" },
     hlaManagerName: { type: String, required: false, default: "" },
+    hlaRoleType: { type: String, required: false, default: "" },
     avatarUrl: { type: String, required: false, default: "" },
     municipality: { type: String, required: false, default: "" },
     province: { type: String, required: false, default: "Bataan" },

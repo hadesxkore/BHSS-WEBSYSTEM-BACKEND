@@ -19,6 +19,7 @@ import eventsRoutes from "./routes/events";
 import announcementsRoutes from "./routes/announcements";
 import adminAnnouncementsRoutes from "./routes/admin-announcements";
 import adminDistributionRoutes from "./routes/admin-distribution";
+import fileSubmissionsRoutes from "./routes/file-submissions";
 
 dotenv.config();
 
@@ -45,7 +46,21 @@ io.on("connection", (socket: Socket) => {
 app.use(cors());
 app.use(express.json());
 
-app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+app.use(
+  "/uploads",
+  express.static(path.resolve(process.cwd(), "uploads"), {
+    etag: true,
+    lastModified: true,
+    maxAge: "7d",
+    setHeaders: (res) => {
+      try {
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      } catch {
+        // ignore
+      }
+    },
+  })
+);
 
 app.get("/", (_req, res) => {
   res.json({ message: "BHSS Websystem Backend API" });
@@ -64,6 +79,7 @@ app.use("/api/admin/announcements", adminAnnouncementsRoutes);
 app.use("/api/announcements", announcementsRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/admin/distribution", adminDistributionRoutes);
+app.use("/api/file-submissions", fileSubmissionsRoutes);
 
 connectDB()
   .then(() => {

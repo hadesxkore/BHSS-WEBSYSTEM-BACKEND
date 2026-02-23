@@ -43,6 +43,7 @@ router.post("/record", requireAuth, async (req: AuthenticatedRequest, res) => {
       {
         userId: req.user.id,
         dateKey: String(dateKey).trim(),
+        grade: normalizedGrade,
       },
       {
         $set: {
@@ -165,14 +166,121 @@ router.get("/by-date/:dateKey", requireAuth, async (req: AuthenticatedRequest, r
       return res.status(400).json({ message: "dateKey is required" });
     }
 
-    const record = await AttendanceRecord.findOne({
+    const grade = typeof (req.query as any)?.grade === "string" ? String((req.query as any).grade).trim() : "";
+
+    const filter: any = {
       userId: req.user.id,
       dateKey: String(dateKey).trim(),
-    });
+    };
+
+    if (grade) {
+      filter.grade = grade;
+    }
+
+    const record = await AttendanceRecord.findOne(filter);
 
     return res.json({ record: record || null });
   } catch (err) {
     console.error(err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.get("/by-date/:dateKey/all", requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { dateKey } = req.params;
+    if (!dateKey) {
+      return res.status(400).json({ message: "dateKey is required" });
+    }
+
+    const records = await AttendanceRecord.find({
+      userId: req.user.id,
+      dateKey: String(dateKey).trim(),
+    }).sort({ grade: 1 });
+
+    return res.json({ records });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.post("/record/bulk", requireAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { dateKey, entries } = (req.body || {}) as Record<string, any>;
+
+    if (!dateKey) {
+      return res.status(400).json({ message: "dateKey is required" });
+    }
+
+    if (!Array.isArray(entries)) {
+      return res.status(400).json({ message: "entries must be an array" });
+    }
+
+    const normalizedDateKey = String(dateKey).trim();
+
+    const cleaned = entries
+      .map((e: any) => {
+        const grade = e?.grade ? String(e.grade).trim() : "";
+        const present = Number(e?.present);
+        const absent = Number(e?.absent);
+        const notes = e?.notes ? String(e.notes) : "";
+        return {
+          grade,
+          present: Number.isFinite(present) ? Math.max(0, Math.floor(present)) : 0,
+          absent: Number.isFinite(absent) ? Math.max(0, Math.floor(absent)) : 0,
+          notes,
+        };
+      })
+      .filter((e) => e.grade && (e.present + e.absent > 0 || String(e.notes || "").trim().length > 0));
+
+    if (!cleaned.length) {
+      return res.status(400).json({ message: "No valid entries to save" });
+    }
+
+    const saved = await Promise.all(
+      cleaned.map(async (e) => {
+        return AttendanceRecord.findOneAndUpdate(
+          {
+            userId: req.user!.id,
+            dateKey: normalizedDateKey,
+            grade: e.grade,
+          },
+          {
+            $set: {
+              userId: req.user!.id,
+              dateKey: normalizedDateKey,
+              grade: e.grade,
+              present: e.present,
+              absent: e.absent,
+              notes: e.notes,
+            },
+          },
+          { new: true, upsert: true }
+        );
+      })
+    );
+
+    return res.status(200).json({ records: saved });
+  } catch (err: any) {
+    console.error(err);
+
+    const code = (err as any)?.code;
+    if (code === 11000) {
+      return res.status(409).json({
+        message:
+          "Duplicate key error while saving attendance. Your database likely still has the old unique index on (userId, dateKey). Drop the index userId_1_dateKey_1 on the AttendanceRecord collection, then retry.",
+      });
+    }
+
     return res.status(500).json({ message: "Internal server error" });
   }
 });

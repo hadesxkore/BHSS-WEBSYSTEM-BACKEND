@@ -147,6 +147,7 @@ router.post("/login", async (req, res) => {
         contactNumber: (user as any).contactNumber,
         schoolAddress: (user as any).schoolAddress,
         hlaManagerName: (user as any).hlaManagerName,
+        hlaRoleType: (user as any).hlaRoleType,
         municipality: user.municipality,
       },
     });

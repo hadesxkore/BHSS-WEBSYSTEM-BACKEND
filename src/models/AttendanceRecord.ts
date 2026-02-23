@@ -23,7 +23,7 @@ const attendanceRecordSchema = new Schema<IAttendanceRecord>(
   { timestamps: true }
 );
 
-attendanceRecordSchema.index({ userId: 1, dateKey: 1 }, { unique: true });
+attendanceRecordSchema.index({ userId: 1, dateKey: 1, grade: 1 }, { unique: true });
 
 export const AttendanceRecord = mongoose.model<IAttendanceRecord>(
   "AttendanceRecord",

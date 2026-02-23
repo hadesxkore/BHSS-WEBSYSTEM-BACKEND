@@ -50,7 +50,8 @@ router.get("/", requireAuth, requireAdmin, async (_req, res) => {
         school: u.school,
         contactNumber: (u as any).contactNumber,
         schoolAddress: (u as any).schoolAddress,
-        hlaManagerName: (u as any).hlaManagerName,
+        hlaManagerName: u.hlaManagerName,
+        hlaRoleType: u.hlaRoleType,
         municipality: u.municipality,
         province: u.province,
         isActive: u.isActive,
@@ -87,6 +88,7 @@ router.get("/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
         contactNumber: (user as any).contactNumber,
         schoolAddress: (user as any).schoolAddress,
         hlaManagerName: (user as any).hlaManagerName,
+        hlaRoleType: (user as any).hlaRoleType,
         avatarUrl: (user as any).avatarUrl,
         municipality: user.municipality,
         province: user.province,
@@ -161,6 +163,7 @@ router.patch("/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
       contactNumber,
       schoolAddress,
       hlaManagerName,
+      hlaRoleType,
       avatarUrl,
       municipality,
       province,
@@ -186,6 +189,9 @@ router.patch("/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     }
     if (typeof hlaManagerName === "string") {
       update.hlaManagerName = String(hlaManagerName).trim();
+    }
+    if (typeof hlaRoleType === "string") {
+      update.hlaRoleType = String(hlaRoleType).trim();
     }
 
     if (typeof avatarUrl === "string") {
@@ -442,6 +448,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       contactNumber,
       schoolAddress,
       hlaManagerName,
+      hlaRoleType,
       municipality,
       province,
       role,
@@ -479,6 +486,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       contactNumber: contactNumber ? String(contactNumber).trim() : "",
       schoolAddress: schoolAddress ? String(schoolAddress).trim() : "",
       hlaManagerName: hlaManagerName ? String(hlaManagerName).trim() : "",
+      hlaRoleType: hlaRoleType ? String(hlaRoleType).trim() : "",
       municipality: String(municipality).trim(),
       province: province ? String(province).trim() : "Bataan",
       isActive: true,
@@ -499,6 +507,7 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
         contactNumber: (createdDoc as any).contactNumber,
         schoolAddress: (createdDoc as any).schoolAddress,
         hlaManagerName: (createdDoc as any).hlaManagerName,
+        hlaRoleType: (createdDoc as any).hlaRoleType,
         municipality: (createdDoc as any).municipality,
         province: (createdDoc as any).province,
         isActive: (createdDoc as any).isActive,
