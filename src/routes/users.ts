@@ -2,16 +2,27 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 
 import { User } from "../models/User";
 import { type AuthenticatedRequest, requireAdmin, requireAuth } from "../middleware/auth";
 
 const router = Router();
 
+const UPLOAD_ROOT = (process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads")).trim();
+const AVATARS_UPLOAD_DIR = path.join(UPLOAD_ROOT, "avatars");
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
-      cb(null, path.resolve(process.cwd(), "uploads"));
+      try {
+        if (!fs.existsSync(AVATARS_UPLOAD_DIR)) {
+          fs.mkdirSync(AVATARS_UPLOAD_DIR, { recursive: true });
+        }
+        cb(null, AVATARS_UPLOAD_DIR);
+      } catch (err) {
+        cb(err as any, AVATARS_UPLOAD_DIR);
+      }
     },
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname || "");
@@ -383,7 +394,7 @@ router.post(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const avatarUrl = `/uploads/${req.file.filename}`;
+      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
 
       const updated = await User.findByIdAndUpdate(
         id,

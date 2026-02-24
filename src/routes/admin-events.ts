@@ -10,7 +10,7 @@ import { PushSubscription } from "../models/PushSubscription";
 
 const router = Router();
 
-const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+const UPLOAD_ROOT = (process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads")).trim();
 const EVENTS_UPLOAD_DIR = path.join(UPLOAD_ROOT, "events");
 
 function ensureUploadDir() {
