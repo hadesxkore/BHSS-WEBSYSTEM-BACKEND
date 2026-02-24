@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import http from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 
@@ -46,9 +47,19 @@ io.on("connection", (socket: Socket) => {
 app.use(cors());
 app.use(express.json());
 
+const UPLOAD_DIR = (process.env.UPLOAD_DIR || path.resolve(process.cwd(), "uploads")).trim();
+
+try {
+  if (UPLOAD_DIR && !fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.error("Failed to ensure upload directory exists", e);
+}
+
 app.use(
   "/uploads",
-  express.static(path.resolve(process.cwd(), "uploads"), {
+  express.static(UPLOAD_DIR || path.resolve(process.cwd(), "uploads"), {
     etag: true,
     lastModified: true,
     maxAge: "7d",
