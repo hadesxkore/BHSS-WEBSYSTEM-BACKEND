@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { FileSubmission } from "../models/FileSubmission";
+import { User } from "../models/User";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
@@ -167,6 +168,32 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
         return fileSubmission;
       })
     );
+
+    try {
+      const io = req.app.get("io") as any;
+      const u = await User.findById(userId).select("name school municipality username hlaRoleType").lean();
+      if (io && savedFiles.length > 0) {
+        io.emit("file-submission:uploaded", {
+          submission: {
+            userId: String(userId || ""),
+            folder: String(folder || ""),
+            filesCount: savedFiles.length,
+            uploadedAt: date,
+            firstFileName: String((savedFiles[0] as any)?.originalName || ""),
+          },
+          user: {
+            id: String(userId || ""),
+            name: String((u as any)?.name || ""),
+            username: String((u as any)?.username || ""),
+            school: String((u as any)?.school || ""),
+            municipality: String((u as any)?.municipality || ""),
+            hlaRoleType: String((u as any)?.hlaRoleType || ""),
+          },
+        });
+      }
+    } catch (emitErr) {
+      console.error("Failed to emit file-submission:uploaded", emitErr);
+    }
 
     return res.json({
       message: `${savedFiles.length} file(s) uploaded successfully`,
