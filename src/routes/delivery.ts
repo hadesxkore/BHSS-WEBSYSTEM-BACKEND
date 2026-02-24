@@ -316,8 +316,8 @@ router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const records = await DeliveryRecord.find(filter).sort(sortSpec).limit(1000);
 
-    const u = await User.findById(req.user.id).select("hlaManagerName").lean();
-    const hlaManagerName = String((u as any)?.hlaManagerName || "");
+    const u = await User.findById(req.user.id).select("hlaManagerName hlaManageName").lean();
+    const hlaManagerName = String((u as any)?.hlaManagerName || (u as any)?.hlaManageName || "");
 
     return res.json({
       records: (records || []).map((r: any) => ({

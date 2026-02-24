@@ -87,7 +87,28 @@ router.get("/history", requireAuth, requireAdmin, async (req: AuthenticatedReque
           municipality: { $ifNull: ["$user.municipality", ""] },
           school: { $ifNull: ["$user.school", ""] },
           userName: { $ifNull: ["$user.name", ""] },
-          hlaManagerName: { $ifNull: ["$user.hlaManagerName", ""] },
+          hlaManagerName: {
+            $let: {
+              vars: {
+                hm: { $ifNull: ["$user.hlaManagerName", ""] },
+                legacy: { $ifNull: ["$user.hlaManageName", ""] },
+                nm: { $ifNull: ["$user.name", ""] },
+              },
+              in: {
+                $cond: [
+                  { $gt: [{ $strLenCP: { $trim: { input: "$$hm" } } }, 0] },
+                  "$$hm",
+                  {
+                    $cond: [
+                      { $gt: [{ $strLenCP: { $trim: { input: "$$legacy" } } }, 0] },
+                      "$$legacy",
+                      "$$nm",
+                    ],
+                  },
+                ],
+              },
+            },
+          },
           username: { $ifNull: ["$user.username", ""] },
         },
       }
