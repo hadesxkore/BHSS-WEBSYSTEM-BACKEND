@@ -269,6 +269,88 @@ router.post("/record/bulk", requireAuth, async (req: AuthenticatedRequest, res) 
       })
     );
 
+    const u = await User.findById(req.user.id).select("name school municipality").lean();
+
+    try {
+      const io = req.app.get("io") as any;
+      if (io) {
+        for (const r of saved) {
+          if (!r) continue;
+          io.emit("attendance:saved", {
+            record: {
+              id: String((r as any)._id || ""),
+              userId: String(req.user.id),
+              dateKey: (r as any).dateKey,
+              grade: (r as any).grade,
+              present: (r as any).present,
+              absent: (r as any).absent,
+              notes: (r as any).notes || "",
+              createdAt: (r as any).createdAt,
+              updatedAt: (r as any).updatedAt,
+            },
+            user: {
+              id: String(req.user.id),
+              name: String((u as any)?.name || ""),
+              school: String((u as any)?.school || ""),
+              municipality: String((u as any)?.municipality || ""),
+            },
+          });
+        }
+      }
+    } catch (emitErr) {
+      console.error("Failed to emit attendance:saved (bulk)", emitErr);
+    }
+
+    try {
+      const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+      const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+      const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+
+      if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+        webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+        const subs = await PushSubscription.find().lean();
+        if (!subs.length) {
+          return res.status(200).json({ records: saved });
+        }
+
+        const school = String((u as any)?.school || "");
+        const dateKeyForUrl = normalizedDateKey;
+
+        const payload = JSON.stringify({
+          title: "New attendance saved",
+          body: `${school || "(school)"} • ${cleaned.length} grade${cleaned.length !== 1 ? "s" : ""} • ${normalizedDateKey}`,
+          url: `/admin/attendance?date=${encodeURIComponent(dateKeyForUrl)}`,
+        });
+
+        await Promise.all(
+          subs.map(async (s: any) => {
+            const subscription = {
+              endpoint: s.endpoint,
+              keys: s.keys,
+            };
+
+            try {
+              await webpush.sendNotification(subscription as any, payload);
+            } catch (pushErr: any) {
+              const statusCode = pushErr?.statusCode;
+              if (statusCode === 404 || statusCode === 410) {
+                try {
+                  await PushSubscription.deleteOne({ endpoint: s.endpoint });
+                } catch {
+                  // ignore
+                }
+              } else {
+                console.error("Failed to send web push (bulk)", pushErr);
+              }
+            }
+          })
+        );
+      }
+    } catch (pushErr) {
+      console.error("Web push error (bulk)", pushErr);
+    }
+
     return res.status(200).json({ records: saved });
   } catch (err: any) {
     console.error(err);

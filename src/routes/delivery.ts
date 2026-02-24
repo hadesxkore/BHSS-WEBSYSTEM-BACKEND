@@ -45,7 +45,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 8 * 1024 * 1024,
+    fileSize: 2 * 1024 * 1024,
     files: 10,
   },
 });
@@ -71,6 +71,35 @@ function parseStringArray(input: unknown): string[] {
       .filter(Boolean);
   }
   return [];
+}
+
+function normalizeConcernValue(value: unknown): string {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\u00A0/g, " ");
+}
+
+function isNoConcernsValue(value: string): boolean {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[\s._-]+/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
+    .trim();
+
+  return [
+    "no concern",
+    "no concerns",
+    "none",
+    "no",
+    "na",
+    "n a",
+    "no cencern",
+    "no cencerns",
+    "no cencer",
+    "no cencers",
+    "no concernss",
+  ].includes(normalized);
 }
 
 router.post(
@@ -105,7 +134,14 @@ router.post(
       const normalizedStatus = status ? String(status).trim() : "Pending";
       const normalizedReason = statusReason ? String(statusReason) : "";
       const normalizedRemarks = remarks ? String(remarks) : "";
-      const parsedConcerns = parseStringArray(concerns);
+      const parsedConcernsRaw = parseStringArray(concerns);
+      const parsedConcernsNormalized = parsedConcernsRaw
+        .map((c) => normalizeConcernValue(c))
+        .filter(Boolean);
+
+      const parsedConcerns = parsedConcernsNormalized.some((c) => isNoConcernsValue(c))
+        ? []
+        : Array.from(new Set(parsedConcernsNormalized));
 
       const files = (req.files as Express.Multer.File[]) || [];
       const imageDocs = files.map((f) => ({
@@ -280,7 +316,15 @@ router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const records = await DeliveryRecord.find(filter).sort(sortSpec).limit(1000);
 
-    return res.json({ records });
+    const u = await User.findById(req.user.id).select("hlaManagerName").lean();
+    const hlaManagerName = String((u as any)?.hlaManagerName || "");
+
+    return res.json({
+      records: (records || []).map((r: any) => ({
+        ...(typeof r?.toObject === "function" ? r.toObject() : r),
+        hlaManagerName,
+      })),
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Internal server error" });

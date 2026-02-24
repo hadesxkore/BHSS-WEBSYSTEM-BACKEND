@@ -22,7 +22,8 @@ function getLocalDayRange(dateStr: string) {
 }
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "../../uploads/file-submissions");
+const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+const uploadsDir = path.join(UPLOAD_ROOT, "file-submissions");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
