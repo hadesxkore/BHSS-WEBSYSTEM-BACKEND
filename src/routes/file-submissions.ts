@@ -8,6 +8,14 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
+const FRUITS_VEG_FOLDER = "Fruits & Vegetables";
+
+function normalizeFolderForClient(folder: unknown): string {
+  const raw = String(folder || "");
+  if (raw === "Fruits" || raw === "Vegetables") return FRUITS_VEG_FOLDER;
+  return raw;
+}
+
 function getLocalDayRange(dateStr: string) {
   const raw = String(dateStr || "").trim();
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -46,20 +54,12 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   const allowedMimes = [
     "image/jpeg",
     "image/png",
-    "image/gif",
-    "image/webp",
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/zip",
   ];
 
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only images, PDFs, Word, Excel, and ZIP files are allowed."));
+    cb(new Error("Invalid file type. Only JPEG/PNG images are allowed."));
   }
 };
 
@@ -68,6 +68,7 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 15,
   },
 });
 
@@ -80,7 +81,11 @@ router.get("/", requireAuth, async (req: any, res) => {
     const query: any = { userId };
 
     if (folder) {
-      query.folder = folder;
+      if (String(folder) === FRUITS_VEG_FOLDER) {
+        query.folder = { $in: [FRUITS_VEG_FOLDER, "Fruits", "Vegetables"] };
+      } else {
+        query.folder = folder;
+      }
     }
 
     if (date) {
@@ -104,7 +109,7 @@ router.get("/", requireAuth, async (req: any, res) => {
         description: file.description,
         uploadedAt: file.uploadDate,
         status: file.status,
-        folder: file.folder,
+        folder: normalizeFolderForClient(file.folder),
         url: `/uploads/file-submissions/${file.fileName}`,
       })),
     });
@@ -115,7 +120,7 @@ router.get("/", requireAuth, async (req: any, res) => {
 });
 
 // Upload files
-router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, res) => {
+router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, res) => {
   try {
     const files = req.files as Express.Multer.File[];
     const { folder, description, uploadDate } = req.body;
@@ -129,9 +134,12 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
       return res.status(400).json({ message: "Folder is required" });
     }
 
+    const folderRaw = String(folder || "");
+    const folderNormalized =
+      folderRaw === "Fruits" || folderRaw === "Vegetables" ? FRUITS_VEG_FOLDER : folderRaw;
+
     const validFolders = [
-      "Fruits",
-      "Vegetables",
+      FRUITS_VEG_FOLDER,
       "Meat",
       "NutriBun",
       "Patties",
@@ -143,7 +151,7 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
       "Others",
     ];
 
-    if (!validFolders.includes(folder)) {
+    if (!validFolders.includes(folderNormalized)) {
       return res.status(400).json({ message: "Invalid folder" });
     }
 
@@ -153,7 +161,7 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
       files.map(async (file) => {
         const fileSubmission = new FileSubmission({
           userId,
-          folder,
+          folder: folderNormalized,
           fileName: file.filename,
           originalName: file.originalname,
           fileSize: file.size,
@@ -176,7 +184,7 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
         io.emit("file-submission:uploaded", {
           submission: {
             userId: String(userId || ""),
-            folder: String(folder || ""),
+            folder: String(folderNormalized || ""),
             filesCount: savedFiles.length,
             uploadedAt: date,
             firstFileName: String((savedFiles[0] as any)?.originalName || ""),
@@ -205,7 +213,7 @@ router.post("/upload", requireAuth, upload.array("files", 10), async (req: any, 
         description: file.description,
         uploadedAt: file.uploadDate,
         status: file.status,
-        folder: file.folder,
+        folder: normalizeFolderForClient(file.folder),
         url: `/uploads/file-submissions/${file.fileName}`,
       })),
     });
@@ -298,7 +306,8 @@ router.get("/stats/counts", requireAuth, async (req: any, res) => {
 
     const folderCounts: Record<string, number> = {};
     counts.forEach((item) => {
-      folderCounts[item._id] = item.count;
+      const normalized = normalizeFolderForClient(item._id);
+      folderCounts[normalized] = (folderCounts[normalized] || 0) + Number(item.count || 0);
     });
 
     return res.json({ folderCounts });

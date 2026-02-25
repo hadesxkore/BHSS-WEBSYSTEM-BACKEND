@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export type FolderType =
+  | "Fruits & Vegetables"
   | "Fruits"
   | "Vegetables"
   | "Meat"
@@ -35,6 +36,7 @@ const fileSubmissionSchema = new Schema<IFileSubmission>(
       type: String,
       required: true,
       enum: [
+        "Fruits & Vegetables",
         "Fruits",
         "Vegetables",
         "Meat",
