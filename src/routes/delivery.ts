@@ -46,7 +46,7 @@ const upload = multer({
   storage,
   limits: {
     fileSize: 2 * 1024 * 1024,
-    files: 10,
+    files: 15,
   },
 });
 
@@ -105,7 +105,23 @@ function isNoConcernsValue(value: string): boolean {
 router.post(
   "/item",
   requireAuth,
-  upload.array("images", 10),
+  (req, res, next) => {
+    upload.array("images", 15)(req, res, (err: any) => {
+      if (!err) return next();
+
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_COUNT") {
+          return res.status(400).json({ message: "You can only upload up to 15 images." });
+        }
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "One of the images is too large." });
+        }
+        return res.status(400).json({ message: err.message || "Upload failed" });
+      }
+
+      return res.status(400).json({ message: "Upload failed" });
+    });
+  },
   async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user?.id) {
@@ -291,7 +307,21 @@ router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
     const search = typeof req.query.search === "string" ? req.query.search : "";
     const sort = typeof req.query.sort === "string" ? req.query.sort : "newest";
 
+    const me = await User.findById(req.user.id).select("school hlaRoleType hlaManagerName hlaManageName").lean();
+    const mySchool = String((me as any)?.school || "").trim();
+    const myHlaRoleType = String((me as any)?.hlaRoleType || "").trim();
+
     const filter: Record<string, any> = { userId: req.user.id };
+
+    if (myHlaRoleType === "HLA Coordinator" && mySchool) {
+      const managers = await User.find({ school: mySchool, hlaRoleType: "HLA Manager" })
+        .select("_id")
+        .lean();
+      const managerIds = (managers || []).map((u: any) => u?._id).filter(Boolean);
+      if (managerIds.length) {
+        filter.userId = { $in: managerIds };
+      }
+    }
 
     if (dateKey) {
       filter.dateKey = dateKey;
@@ -316,8 +346,7 @@ router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
 
     const records = await DeliveryRecord.find(filter).sort(sortSpec).limit(1000);
 
-    const u = await User.findById(req.user.id).select("hlaManagerName hlaManageName").lean();
-    const hlaManagerName = String((u as any)?.hlaManagerName || (u as any)?.hlaManageName || "");
+    const hlaManagerName = String((me as any)?.hlaManagerName || (me as any)?.hlaManageName || "");
 
     return res.json({
       records: (records || []).map((r: any) => ({

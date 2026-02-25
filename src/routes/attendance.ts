@@ -378,7 +378,21 @@ router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const sort = typeof req.query.sort === "string" ? req.query.sort : "newest";
 
+    const me = await User.findById(req.user.id).select("school hlaRoleType").lean();
+    const mySchool = String((me as any)?.school || "").trim();
+    const myHlaRoleType = String((me as any)?.hlaRoleType || "").trim();
+
     const filter: Record<string, any> = { userId: req.user.id };
+
+    if (myHlaRoleType === "HLA Coordinator" && mySchool) {
+      const managers = await User.find({ school: mySchool, hlaRoleType: "HLA Manager" })
+        .select("_id")
+        .lean();
+      const managerIds = (managers || []).map((u: any) => u?._id).filter(Boolean);
+      if (managerIds.length) {
+        filter.userId = { $in: managerIds };
+      }
+    }
 
     if (from || to) {
       filter.dateKey = {};
