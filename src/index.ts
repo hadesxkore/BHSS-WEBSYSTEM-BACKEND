@@ -28,6 +28,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+const INSTANCE_ID = String(process.env.INSTANCE_ID || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
@@ -40,6 +42,12 @@ app.set("io", io);
 
 io.on("connection", (socket: Socket) => {
   console.log("Socket connected", socket.id);
+
+  socket.emit("server:instance", {
+    instanceId: INSTANCE_ID,
+    ts: Date.now(),
+  });
+
   socket.on("disconnect", () => {
     console.log("Socket disconnected", socket.id);
   });
