@@ -51,6 +51,11 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // If the folder is COA, allow all file types
+  if (req.body.folder === "COA") {
+    return cb(null, true);
+  }
+
   const allowedMimes = [
     "image/jpeg",
     "image/png",
