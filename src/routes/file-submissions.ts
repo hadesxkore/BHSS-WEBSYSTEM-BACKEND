@@ -148,6 +148,7 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
       "Water",
       "LPG",
       "Rice",
+      "COA",
       "Others",
     ];
 

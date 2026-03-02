@@ -12,6 +12,7 @@ export type FolderType =
   | "Water"
   | "LPG"
   | "Rice"
+  | "COA"
   | "Others";
 
 export interface IFileSubmission extends Document {
@@ -47,6 +48,7 @@ const fileSubmissionSchema = new Schema<IFileSubmission>(
         "Water",
         "LPG",
         "Rice",
+        "COA",
         "Others",
       ],
     },
