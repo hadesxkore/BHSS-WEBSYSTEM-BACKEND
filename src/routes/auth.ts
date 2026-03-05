@@ -7,7 +7,7 @@ import { User } from "../models/User";
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-const JWT_EXPIRES_IN = "7d";
+const JWT_EXPIRES_IN = "30d";
 
 const AUTH_DEBUG = String(process.env.AUTH_DEBUG || "").toLowerCase() === "true";
 
