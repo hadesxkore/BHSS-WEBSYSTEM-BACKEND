@@ -26,6 +26,9 @@ export interface IFileSubmission extends Document {
   description?: string;
   uploadDate: Date;
   status: "pending" | "uploaded" | "rejected";
+  pdfFileName?: string;
+  pdfFilePath?: string;
+  pdfStatus?: "pending" | "done" | "failed";
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -63,6 +66,13 @@ const fileSubmissionSchema = new Schema<IFileSubmission>(
       type: String,
       enum: ["pending", "uploaded", "rejected"],
       default: "uploaded",
+    },
+    pdfFileName: { type: String, default: "" },
+    pdfFilePath: { type: String, default: "" },
+    pdfStatus: {
+      type: String,
+      enum: ["pending", "done", "failed"],
+      default: undefined,
     },
   },
   { timestamps: true }

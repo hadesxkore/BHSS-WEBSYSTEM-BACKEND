@@ -20,12 +20,18 @@ export function requireAuth(
   res: Response,
   next: NextFunction
 ) {
+  let token = "";
+
   const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Missing Authorization header" });
+  if (header && header.startsWith("Bearer ")) {
+    token = header.slice("Bearer ".length).trim();
+  } else if (req.query.token) {
+    token = String(req.query.token).trim();
   }
 
-  const token = header.slice("Bearer ".length).trim();
+  if (!token) {
+    return res.status(401).json({ message: "Missing Authorization header or token query param" });
+  }
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as AuthJwtPayload;

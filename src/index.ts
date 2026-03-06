@@ -22,6 +22,8 @@ import adminAnnouncementsRoutes from "./routes/admin-announcements";
 import adminDistributionRoutes from "./routes/admin-distribution";
 import fileSubmissionsRoutes from "./routes/file-submissions";
 import adminFileSubmissionsRoutes from "./routes/admin-file-submissions";
+import adminActivitiesRoutes from "./routes/admin-activities";
+import activitiesRoutes from "./routes/activities";
 
 dotenv.config();
 
@@ -101,6 +103,8 @@ app.use("/api/push", pushRoutes);
 app.use("/api/admin/distribution", adminDistributionRoutes);
 app.use("/api/file-submissions", fileSubmissionsRoutes);
 app.use("/api/admin/file-submissions", adminFileSubmissionsRoutes);
+app.use("/api/admin/activities", adminActivitiesRoutes);
+app.use("/api/activities", activitiesRoutes);
 
 connectDB()
   .then(() => {

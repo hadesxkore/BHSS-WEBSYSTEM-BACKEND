@@ -5,6 +5,7 @@ import fs from "fs";
 import { FileSubmission } from "../models/FileSubmission";
 import { User } from "../models/User";
 import { requireAuth } from "../middleware/auth";
+import { convertDocxToPdf } from "../utils/docx-to-pdf";
 
 const router = Router();
 
@@ -165,6 +166,7 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
 
     const savedFiles = await Promise.all(
       files.map(async (file) => {
+        const isDocx = file.originalname.toLowerCase().endsWith(".docx");
         const fileSubmission = new FileSubmission({
           userId,
           folder: folderNormalized,
@@ -176,6 +178,8 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
           description: description || "",
           uploadDate: date,
           status: "uploaded",
+          // Mark docx files as pending conversion
+          pdfStatus: isDocx ? "pending" : undefined,
         });
 
         await fileSubmission.save();
@@ -209,7 +213,8 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
       console.error("Failed to emit file-submission:uploaded", emitErr);
     }
 
-    return res.json({
+    // Respond to client immediately
+    res.json({
       message: `${savedFiles.length} file(s) uploaded successfully`,
       files: savedFiles.map((file) => ({
         id: file._id,
@@ -221,8 +226,53 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
         status: file.status,
         folder: normalizeFolderForClient(file.folder),
         url: `/uploads/file-submissions/${file.fileName}`,
+        pdfStatus: (file as any).pdfStatus,
       })),
     });
+
+    // Kick off DOCX → PDF conversion in the background (non-blocking)
+    const io = req.app.get("io") as any;
+    for (const saved of savedFiles) {
+      const isDocx = saved.originalName.toLowerCase().endsWith(".docx");
+      if (!isDocx) continue;
+
+      void (async () => {
+        try {
+          console.log(`[docx-to-pdf] Converting: ${saved.originalName}`);
+          const pdfPath = await convertDocxToPdf(saved.filePath, uploadsDir);
+
+          if (pdfPath) {
+            const pdfFileName = path.basename(pdfPath);
+            await FileSubmission.findByIdAndUpdate(saved._id, {
+              originalName: saved.originalName.replace(/\.docx$/i, ".pdf"),
+              fileName: pdfFileName,
+              filePath: pdfPath,
+              mimeType: "application/pdf",
+              pdfFileName,
+              pdfFilePath: pdfPath,
+              pdfStatus: "done",
+            });
+            console.log(`[docx-to-pdf] Done: ${pdfFileName}`);
+
+            // Notify clients that the PDF is ready
+            if (io) {
+              io.emit("file-submission:pdf-ready", {
+                fileId: String(saved._id),
+                userId: String(userId),
+                pdfFileName,
+              });
+            }
+          } else {
+            await FileSubmission.findByIdAndUpdate(saved._id, { pdfStatus: "failed" });
+          }
+        } catch (convErr) {
+          console.error(`[docx-to-pdf] Error for ${saved.originalName}:`, convErr);
+          await FileSubmission.findByIdAndUpdate(saved._id, { pdfStatus: "failed" });
+        }
+      })();
+    }
+
+    return;
   } catch (err) {
     console.error("Error uploading files:", err);
     return res.status(500).json({ message: "Failed to upload files" });

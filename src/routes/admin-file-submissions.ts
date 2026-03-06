@@ -75,7 +75,6 @@ router.get("/history", requireAuth, requireAdmin, async (req: AuthenticatedReque
         },
       },
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
-      { $match: { "user.hlaRoleType": "HLA Coordinator" } },
     ];
 
     if (municipality) {
@@ -176,8 +175,20 @@ router.get("/download/:id", requireAuth, requireAdmin, async (req: Authenticated
       return res.status(404).json({ message: "File not found on server" });
     }
 
-    res.setHeader("Content-Disposition", `attachment; filename="${file.originalName}"`);
-    res.setHeader("Content-Type", file.mimeType);
+    const isView = req.query.view === "true";
+    const disposition = isView ? "inline" : "attachment";
+    res.setHeader("Content-Disposition", `${disposition}; filename="${file.originalName}"`);
+
+    // For Office files, use application/pdf or text/plain to trick browser into NOT downloading
+    let contentType = file.mimeType || "application/octet-stream";
+    if (isView) {
+      const ext = file.originalName.toLowerCase().split(".").pop();
+      if (ext === "docx") contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      if (ext === "xlsx") contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      // browsers still often force download for these, so we use a more generic one if needed
+      // but disposition 'inline' should work if we correctly identify it
+    }
+    res.setHeader("Content-Type", contentType);
 
     const fileStream = fs.createReadStream(file.filePath);
     fileStream.pipe(res);
