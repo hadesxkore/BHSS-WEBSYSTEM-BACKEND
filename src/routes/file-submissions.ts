@@ -243,8 +243,10 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
 
           if (pdfPath) {
             const pdfFileName = path.basename(pdfPath);
+            // Always preserve the user's human-readable original name (just swap .docx → .pdf)
+            const humanReadableName = saved.originalName.replace(/\.docx$/i, ".pdf");
             await FileSubmission.findByIdAndUpdate(saved._id, {
-              originalName: saved.originalName.replace(/\.docx$/i, ".pdf"),
+              originalName: humanReadableName,
               fileName: pdfFileName,
               filePath: pdfPath,
               mimeType: "application/pdf",
@@ -252,7 +254,7 @@ router.post("/upload", requireAuth, upload.array("files", 15), async (req: any, 
               pdfFilePath: pdfPath,
               pdfStatus: "done",
             });
-            console.log(`[docx-to-pdf] Done: ${pdfFileName}`);
+            console.log(`[docx-to-pdf] Done: ${pdfFileName} (displayed as: ${humanReadableName})`);
 
             // Notify clients that the PDF is ready
             if (io) {
